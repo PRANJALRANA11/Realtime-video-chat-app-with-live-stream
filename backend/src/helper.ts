@@ -288,10 +288,6 @@ function startFFmpegMerging(streams: string[], roomName: string): void {
   const audioIndexes = streams.map((_, i) => `[${i}:a]`).join("");
   const layout = generateLayout(streams.length);
 
-  currentSegmentIndex = getLastSegmentIndex();
-  const deleteseg = currentSegmentIndex - 2;
-  deleteSegmentsFrom(deleteseg);
-
   const ffmpegArgs = [
     ...inputs,
     "-filter_complex",
@@ -330,11 +326,10 @@ function startFFmpegMerging(streams: string[], roomName: string): void {
     "-hls_time",
     "2",
     "-hls_list_size",
-    "3",
+    "30",
     "-hls_flags",
-    "delete_segments",
-    `-start_number`,
-    `${currentSegmentIndex}`,
+    "delete_segments+append_list+omit_endlist",
+
     outputFile,
   ];
 
@@ -347,35 +342,6 @@ function startFFmpegMerging(streams: string[], roomName: string): void {
   ffmpegProcess.on("exit", (code) => {
     console.log(`FFmpeg exited with code ${code}`);
     ffmpegProcess = null;
-  });
-}
-
-const getLastSegmentIndex = (): number => {
-  const files = fs.readdirSync("public/hls/merged");
-  const tsFiles = files.filter((file) => file.endsWith(".ts"));
-  const segmentNumbers = tsFiles
-    .map((file) => {
-      const match = file.match(/(\d+)\.ts$/);
-      return match ? parseInt(match[1], 10) : null;
-    })
-    .filter((num): num is number => num !== null);
-  return segmentNumbers.length > 0 ? Math.max(...segmentNumbers) + 1 : 0;
-};
-
-function deleteSegmentsFrom(startNumber: number): void {
-  const folderPath = path.join(__dirname, "public/hls/merged");
-  const files = fs.readdirSync(folderPath);
-
-  files.forEach((file) => {
-    const match = file.match(/stream(\d+)\.ts$/);
-    if (match) {
-      const segmentNum = parseInt(match[1], 10);
-      if (segmentNum >= startNumber) {
-        const filePath = path.join(folderPath, file);
-        fs.unlinkSync(filePath);
-        console.log(`Deleted: ${file}`);
-      }
-    }
   });
 }
 

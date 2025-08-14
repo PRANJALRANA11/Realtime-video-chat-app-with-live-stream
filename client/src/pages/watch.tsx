@@ -16,20 +16,51 @@ const Watch: React.FC<HLSPlayerProps> = ({
 
   useEffect(() => {
     const video = videoRef.current;
-
     if (!video) return;
 
     let hls: Hls | null = null;
 
-    if (Hls.isSupported()) {
-      hls = new Hls();
-      hls.loadSource(src);
+    const initHls = (source: string) => {
+      if (hls) {
+        hls.destroy();
+      }
+      hls = new Hls({
+        liveSyncDuration: 3,
+        liveMaxLatencyDuration: 10,
+        manifestLoadingTimeOut: 5000,
+        manifestLoadingRetryDelay: 1000,
+        manifestLoadingMaxRetry: Infinity,
+      });
+      hls.loadSource(source);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play();
+        video.play().catch(() => {});
       });
+
+      // Error handling
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          console.warn("HLS fatal error:", data.type);
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              // Retry loading the same src with cache-busting
+              initHls(`${src}?_t=${Date.now()}`);
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              hls?.recoverMediaError();
+              break;
+            default:
+              initHls(`${src}?_t=${Date.now()}`);
+              break;
+          }
+        }
+      });
+    };
+
+    if (Hls.isSupported()) {
+      initHls(src);
     } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // For Safari
+      // Safari native HLS
       video.src = src;
       video.addEventListener("loadedmetadata", () => {
         video.play();
