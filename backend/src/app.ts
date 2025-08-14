@@ -9,7 +9,6 @@ import { handleShutdown } from "./helper.js";
 const app = express();
 const __dirname = path.resolve();
 
-app.use(cors());
 app.use("/hls", express.static(path.join(__dirname, "public/hls")));
 
 const httpsServer = http.createServer(app);
